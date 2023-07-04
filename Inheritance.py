@@ -3,6 +3,10 @@ I will try to implement the concept of parent class and child class. Furthermore
 of nested classes which inherit from each other.
 """
 
+# Python allows for type annotation.
+primes = []  # type: List[int]
+primes: list[int] = []
+
 # You don't need to  
 class Dog:
     def __init__(self, name, age):
