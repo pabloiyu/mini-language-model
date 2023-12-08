@@ -1,10 +1,10 @@
 """
-Note: For it to work on WSL2 I followed
+Note: For Mamba SSM to work on WSL2 instead of full Linux installation I followed
 
 https://docs.nvidia.com/cuda/wsl-user-guide/index.html
 
 Had to uninstall sudo rm cuda-repo-wsl-ubuntu-12-3-local_12.3.1-1_amd64.deb
-Must have had an inproper installation
+Must have had an improper installation
 
 Also had to update PATH variables
 export PATH=/usr/local/cuda-12.3/bin:$PATH
