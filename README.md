@@ -1,3 +1,3 @@
-# Test
+# Mini Language Model
 
-This is a test to see how to use Github repositories.
+Implementing [Mamba SSM](https://arxiv.org/abs/2312.00752) instead of attention heads into a mini language model. 
