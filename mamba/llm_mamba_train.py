@@ -104,15 +104,12 @@ class Block(nn.Module):
       d_conv=4,      # local convolution width
       expand=2,    # block expansion factor
   ).to(device)
-    self.ffn = FeedForward(n_embed).to(device)
     self.ln1 = nn.LayerNorm(n_embed).to(device)
-    self.ln2 = nn.LayerNorm(n_embed).to(device)
 
 
   def forward(self, x):
     # We use norm before inputting into
     x = x + self.sa_head(self.ln1(x))
-    x = x + self.ffn(self.ln2(x))
 
     return x
 
