@@ -7,6 +7,10 @@ Implementing [Mamba SSM](https://arxiv.org/abs/2312.00752) instead of attention 
 * "llm_mamba_train.py" Trains a mini language model (25M parameters) on the open domain works of Sherlock Holmes and saves resulting LLM model. Training should run on a 8GB VRAM GPU.
 * "llm_mamba_use.py" Uses trained LLM model to generate new tokens and saves it to "output.txt".
 
+## Adapter
+
+Similar code structure as Mamba. Implements architecture for incorporating parallel adapter layers into a transformer. Adapters are particularly useful when dealing with large pre-trained language models as they allow us to leverage the knowledge captured in these large models, while only needing to train a relatively small number of parameters.
+
 ## Mistral
 
 Contains a very simple use case of a quantized Mistral-7B model.
