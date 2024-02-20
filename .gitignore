@@ -1,2 +1,4 @@
-mistral-7b-instruct-v0.1.Q5_K_M.gguf
+mistral/mistral-7b-instruct-v0.1.Q5_K_M.gguf
 adapter/saved_model.pth
+adapter/test.py
+mistral/faiss_index.pkl

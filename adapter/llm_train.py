@@ -11,13 +11,13 @@ block_size = 256
 device = "cuda" if torch.cuda.is_available() else "cpu"
 if device != "cuda":
     sys.exit(0)
-max_iters = 1001
+max_iters = 801
 print_iters = 100
 eval_iters = 10
 eval_interval = 100
 n_embed= 384
-n_heads = 6
-n_layers = 12
+n_heads = 4
+n_layers = 6
 dropout = 0.2
 # ---------
 
@@ -34,11 +34,10 @@ vocab_size = len(chars)
 chtoi = {ch:i for i,ch in enumerate(chars)}
 itoch = {i:ch for i,ch in enumerate(chars)}
 
-def encode(s):  
-    return [chtoi[ch] for ch in s] # Take a string, output list of integers.
-
-def decode(list_int):
-    return "".join([itoch[i] for i in list_int]) # Take a list of integers, output string.
+# Take a string, output list of integers.
+encode = lambda s:        [chtoi[ch] for ch in s]
+#Take a list of integers, output string.
+decode = lambda list_int: ''.join([itoch[i] for i in list_int])
 
 def get_batch(split, train_data, val_data):
     """
@@ -54,7 +53,7 @@ def get_batch(split, train_data, val_data):
     return X.to(device),Y.to(device)
 
 @torch.no_grad()
-def estimate_loss(eval_iters, train_data, val_data):
+def estimate_loss(model, eval_iters, train_data, val_data):
     out = {}
     model.eval()
     for split in ['train', 'val']:
@@ -62,27 +61,14 @@ def estimate_loss(eval_iters, train_data, val_data):
         for k in range(eval_iters):
             X, Y = get_batch(split, train_data, val_data)
             logits, loss = model(X, Y)
+            
+            # The loss is the mean loss over all the batches, and tokens in each sentence.
+            # When we call .backward() on the mean loss, PyTorch computes the gradients for each 
+            # individual loss in the batch.
             losses[k] = loss.item()
         out[split] = losses.mean()
     model.train()
     return out
-  
-  
-class Adapter(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(Adapter, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-
-        self.adapter = nn.Sequential(
-            nn.Linear(self.input_size, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.output_size),
-        )
-
-    def forward(self, x):
-        return self.adapter(x)
   
 class Head(nn.Module):
     def __init__(self, head_size):
@@ -147,14 +133,11 @@ class Block(nn.Module):
     self.ln1 = nn.LayerNorm(n_embed)
     self.ln2 = nn.LayerNorm(n_embed)
     self.feedforward = FeedForward(n_embed)
-    self.adapter1 = Adapter(n_embed, n_embed//8, n_embed)  # Define adapter with appropriate dimensions
-    self.adapter2 = Adapter(n_embed, n_embed//8, n_embed)
 
   def forward(self, x):
     # We use norm before
-    # Parallel adapters are useful when dealing with large pre-trained models
-    x = x + self.sa_head(self.ln1(x)) + self.adapter1(self.ln1(x))
-    x = x + self.feedforward(self.ln2(x)) + self.adapter2(self.ln2(x))
+    x = x + self.sa_head(self.ln1(x)) 
+    x = x + self.feedforward(self.ln2(x)) 
 
     return x
 
@@ -188,13 +171,13 @@ class LLM(nn.Module):
       
     return logits, loss
 
-  def generate(self, idx, max_new_tokens):
+  def generate(self, idx, max_new_tokens, temperature=1.0):
     # idx is (B,T)
     idx_next = []
     for i in range(max_new_tokens):
       idx_cond = idx[:,-block_size:]
       logits, loss = self(idx_cond)
-      last_timestep = logits[:,-1,:]
+      last_timestep = logits[:,-1,:] / temperature
       probs = F.softmax(last_timestep, dim=1)
       next_index = torch.multinomial(probs, num_samples=1)
       idx = torch.cat((idx, next_index), dim=1)
@@ -202,40 +185,40 @@ class LLM(nn.Module):
     return idx
 
 if __name__ == "__main__":
-  # We now encode entire "sherlock.txt" and save it in a torch tensor.
-  data = torch.tensor(encode(text))
+    # We now encode entire "sherlock.txt" and save it in a torch tensor.
+    data = torch.tensor(encode(text)) 
 
-  n = int(0.9 * len(data))
-  train_data = data[:n]
-  val_data = data[n:]
-  
-  print(f"Length of dataset: {len(text)} characters.")
-  
-  print("vocab_size: ", vocab_size)
-  print("Vocabulary: ", "".join(chars))
+    n = int(0.9 * len(data))
+    train_data = data[:n]
+    val_data = data[n:]
 
-  model = LLM(vocab_size).to(device)
-  optimizer = torch.optim.AdamW(model.parameters(),lr=lr)
+    print(f"Length of dataset: {len(text)} characters.")
 
-  num_params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
-  print(f"Number of trainable parameters: {round(num_params,3)} million")
+    print("vocab_size: ", vocab_size)
+    print("Vocabulary: ", "".join(chars))
 
-  for iter in tqdm(range(max_iters)):
-      if iter % eval_interval == 0:
-          losses = estimate_loss(eval_iters, train_data, val_data)
-          print(f"iter: {iter}  train_loss: {losses['train']:.4f}  val_loss: {losses['val']:.4f}")
+    model = LLM(vocab_size).to(device)
+    print(model)
+    optimizer = torch.optim.AdamW(model.parameters(),lr=lr)
 
-      # sample a batch of data
-      xb, yb = get_batch('train', train_data, val_data)
-      xb.to(device)
-      yb.to(device)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
+    print(f"Number of trainable parameters: {round(num_params,3)} million")
 
-      # evaluate the loss
-      logits, loss = model(xb, yb)
-      optimizer.zero_grad(set_to_none=True)
-      loss.backward()
-      optimizer.step()
-      
-  torch.save(model.state_dict(), "saved_model.pth")
-  print("Trained model has been saved.")
-    
+    for iter in tqdm(range(max_iters)):
+        if iter % eval_interval == 0:
+            losses = estimate_loss(model, eval_iters, train_data, val_data)
+            print(f"iter: {iter}  train_loss: {losses['train']:.4f}  val_loss: {losses['val']:.4f}")
+
+        # sample a batch of data
+        xb, yb = get_batch('train', train_data, val_data)
+        xb.to(device)
+        yb.to(device)
+
+        # evaluate the loss
+        logits, loss = model(xb, yb)
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+
+    torch.save(model.state_dict(), "saved_model.pth")
+    print("Trained model has been saved.")
