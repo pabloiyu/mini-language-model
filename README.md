@@ -13,4 +13,4 @@ Similar code structure as Mamba. Implements architecture for incorporating paral
 
 ## Mistral
 
-Contains a very simple use case of a quantized Mistral-7B model.
+Contains a very simple use case of a quantized Mistral-7B model. Also experimenting with vector similarity and simple RAG implementation.
