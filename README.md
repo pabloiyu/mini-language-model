@@ -11,6 +11,8 @@ Implementing [Mamba SSM](https://arxiv.org/abs/2312.00752) instead of attention 
 
 Similar code structure as Mamba. Implements architecture for incorporating parallel adapter layers into a transformer. Adapters are particularly useful when dealing with large pre-trained language models as they allow us to leverage the knowledge captured in these large models, while only needing to train a relatively small number of parameters.
 
+* "add_adapters.py" Loads state dictionary of trained LLM model, freezes original parameters and adds adapter layers.
+
 ## Mistral
 
-Contains a very simple use case of a quantized Mistral-7B model.
+Contains a very simple use case of a quantized Mistral-7B model. Also experimenting with vector similarity and simple RAG implementation.
