@@ -82,12 +82,12 @@ class Head(nn.Module):
         self.head_size = head_size
 
     def forward(self, x):
-        _,T,_ = x.shape
+        _,T,_ = x.shape   # (B, T, n_embed)
         K = self.key(x)   
         Q = self.query(x) 
         
         # Einsum is easier way to view the batched matrix multiplication. 
-        wei = torch.einsum('ijk, ilk -> ijl', Q, K) * self.head_size**(-0.5)
+        wei = torch.einsum('ijk, ilk -> ijl', Q, K) * self.head_size**(-0.5) # (B, T, n_embed) @ (B, n_embed, T) -> (B, T, T)
         
         # We now mask values so that decoder can't look at future tokens
         wei = wei.masked_fill(self.tril[:T,:T]==0, float('-inf')) 
@@ -148,39 +148,42 @@ class LLM(nn.Module):
     self.position_embedding_table = nn.Embedding(block_size,n_embed)
     self.lm_head = nn.Linear(n_embed,vocab_size)
     self.blocks = nn.Sequential(*[Block(n_embed,n_heads=n_heads) for _ in range(n_layers)])
-    self.ln_f = nn.LayerNorm(n_embed)# final layer norm
+    self.ln_f = nn.LayerNorm(n_embed) # final layer norm
 
   def forward(self, idx, targets=None):
     # idx = idx[:,-block_size:]
-    B,T = idx.shape
-    tok_emb = self.token_embedding_table(idx) # (B,T,C_e)
-    pos_emb = self.position_embedding_table(torch.arange(T,device=device)) # (T,C_e)
-    x = tok_emb + pos_emb # (B,T,C_e)
-    x = self.blocks(x) # (B,T,C_e)
-    x = self.ln_f(x) # (B,T,C)
+    B,T = idx.shape 
+    tok_emb = self.token_embedding_table(idx) # (B,T,n_embed)
+    pos_emb = self.position_embedding_table(torch.arange(T,device=device)) # (T,n_embed)
+    
+    x = tok_emb + pos_emb # (B,T,n_embed)
+    x = self.blocks(x) # (B,T,n_embed)
+    x = self.ln_f(x) # (B,T,n_embed)
     logits = self.lm_head(x) # (B,T,vocab_size)
     
     if targets is None:
       loss = None
     else:
-      B,T,C = logits.shape
-      logits = logits.view(B*T,C)
+      B,T,V = logits.shape
+      logits = logits.view(B*T,V)
       targets = targets.view(B*T)
       loss = F.cross_entropy(logits, targets)
-      logits = logits.view(B,T,C)
+      logits = logits.view(B,T,V)
       
     return logits, loss
 
   def generate(self, idx, max_new_tokens, temperature=1.0):
     # idx is (B,T)
     idx_next = []
+    
+    # Autoregressively generate new tokens
     for i in range(max_new_tokens):
       idx_cond = idx[:,-block_size:]
       logits, loss = self(idx_cond)
-      last_timestep = logits[:,-1,:] / temperature
+      last_timestep = logits[:,-1,:] / temperature # (B,V)
       probs = F.softmax(last_timestep, dim=1)
-      next_index = torch.multinomial(probs, num_samples=1)
-      idx = torch.cat((idx, next_index), dim=1)
+      next_token = torch.multinomial(probs, num_samples=1) # B
+      idx = torch.cat((idx, next_token), dim=1)
       
     return idx
 
